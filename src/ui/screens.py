@@ -1478,59 +1478,88 @@ class HelpScreen(Screen):
 
 
 class SettingsScreen(Screen):
+    print("before, MeileGuiConfig")
     MeileConfig = MeileGuiConfig()
+    print("after, MeileGuiConfig")
 
     def __init__(self, **kwargs):
+        print("before super")
         super().__init__(**kwargs)
+        print("after super")
 
         params = HTTParams()
+        # Load default values
         self.RPC = params.RPC
+        self.GRPC = params.GRPC
 
         self.MeileConfig = MeileGuiConfig()
 
-        menu_items = [
-            {
-                "viewclass": "IconListItem",
-                "icon": "server-security",
-                "text": f"{i}",
-                "height": dp(56),
-                "on_release": lambda x=f"{i}": self.set_item(x),
-            } for i in params.RPCS
-        ]
-        self.menu = MDDropdownMenu(
-            caller=self.ids.drop_item,
-            items=menu_items,
+        # I've tried to write a single code with the iteration of 'what' [grpc, rpc]
+        # But doesn't work because the code at runtime will pass the loop value and not a copy one
+
+        self.rpc_menu = MDDropdownMenu(
+            caller=self.ids.rpc_drop_item,
+            items=[
+                {
+                    "viewclass": "IconListItem",
+                    "icon": "server-security",
+                    "text": f"{i}",
+                    "height": dp(56),
+                    "on_release": lambda x=f"{i}": self.set_item(x, "rpc"),
+                } for i in params.RPCS
+            ],
             position="center",
             width_mult=50,
         )
-        self.menu.bind()
+        print(self.rpc_menu)
+        self.rpc_menu.bind()
 
-    def get_rpc_config(self):
-        CONFIG = self.MeileConfig.read_configuration(self.MeileConfig.CONFFILE)
+        self.grpc_menu = MDDropdownMenu(
+            caller=self.ids.grpc_drop_item,
+            items=[
+                {
+                    "viewclass": "IconListItem",
+                    "icon": "server-security",
+                    "text": f"{i}",
+                    "height": dp(56),
+                    "on_release": lambda x=f"{i}": self.set_item(x, "grpc"),
+                } for i in params.GRPCS
+            ],
+            position="center",
+            width_mult=50,
+        )
+        print(self.grpc_menu)
+        self.grpc_menu.bind()
 
-        self.ids.drop_item.set_item(CONFIG['network']['rpc'])
-        return CONFIG['network']['rpc']
+    def get_config(self, what: str = "rpc"):
+        config = self.MeileConfig.read_configuration(self.MeileConfig.CONFFILE)
+        getattr(self.ids, f"{what}_drop_item").set_item(config['network'][what])
+        return config['network'][what]
 
-    def set_item(self, text_item):
-        self.ids.drop_item.set_item(text_item)
-        self.RPC = text_item
-        self.menu.dismiss()
+    def set_item(self, text_item, what: str = "RPC"):
+        getattr(self.ids, f"{what.lower()}_drop_item").set_item(text_item)
+        setattr(self, what.upper(), text_item)
+        print("what", what, getattr(self, what.upper()))
+        getattr(self, f"{what.lower()}_menu").dismiss()
 
     def build(self):
+        print("before build, return screen")
         return self.screen
 
     def SaveOptions(self):
+        config = self.MeileConfig.read_configuration(self.MeileConfig.CONFFILE)
+        for what in ["rpc", "grpc"]:
+            config.set('network', what, getattr(self, what.upper()))
 
-        CONFIG = self.MeileConfig.read_configuration(self.MeileConfig.CONFFILE)
-        CONFIG.set('network', 'rpc', self.RPC)
+        print('network', 'rpc', self.RPC)
+        print('network', 'grpc', self.GRPC)
 
-        FILE = open(self.MeileConfig.CONFFILE, 'w')
-        CONFIG.write(FILE)
+        with open(self.MeileConfig.CONFFILE, 'w', encoding="utf-8") as f:
+            config.write(f)
 
         self.set_previous_screen()
 
     def set_previous_screen(self):
-
         Meile.app.root.remove_widget(self)
         Meile.app.root.transistion = SlideTransition(direction="up")
         Meile.app.root.current = WindowNames.MAIN_WINDOW
