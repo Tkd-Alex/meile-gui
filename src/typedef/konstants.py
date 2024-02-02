@@ -36,16 +36,16 @@ class HTTParams:
     RPC = "https://rpc.mathnodes.com:443"
     # Note http://128.199.90.172:26657 is testnet ONLY!
     RPCS = [
-        "https://rpc-sentinel-ia.cosmosia.notional.ventures",
+        "https://rpc-sentinel-ia.cosmosia.notional.ventures:443",
         "https://rpc-sentinel.whispernode.com:443",
-        "https://rpc.sentinel.chaintools.tech",
-        "https://rpc.sentinel.quokkastake.io",
-        "https://rpc.dvpn.roomit.xyz",
-        "https://sentinel-rpc.badgerbite.io",
+        "https://rpc.sentinel.chaintools.tech:443",
+        "https://rpc.sentinel.quokkastake.io:443",
+        "https://rpc.dvpn.roomit.xyz:443",
+        "https://sentinel-rpc.badgerbite.io:443",
         "https://sentinel-rpc.publicnode.com:443",
-        "https://sentinel-rpc.validatornode.com",
-        "https://rpc.trinityvalidator.com",
-        "https://rpc.sentinelgrowthdao.com",
+        "https://sentinel-rpc.validatornode.com:443",
+        "https://rpc.trinityvalidator.com:443",
+        "https://rpc.sentinelgrowthdao.com:443",
     ]
     GRPC = "aimokoivunen.mathnodes.com:9090"
     GRPCS = [

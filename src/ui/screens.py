@@ -1478,14 +1478,10 @@ class HelpScreen(Screen):
 
 
 class SettingsScreen(Screen):
-    print("before, MeileGuiConfig")
     MeileConfig = MeileGuiConfig()
-    print("after, MeileGuiConfig")
 
     def __init__(self, **kwargs):
-        print("before super")
         super().__init__(**kwargs)
-        print("after super")
 
         params = HTTParams()
         # Load default values
@@ -1511,7 +1507,6 @@ class SettingsScreen(Screen):
             position="center",
             width_mult=50,
         )
-        print(self.rpc_menu)
         self.rpc_menu.bind()
 
         self.grpc_menu = MDDropdownMenu(
@@ -1528,7 +1523,6 @@ class SettingsScreen(Screen):
             position="center",
             width_mult=50,
         )
-        print(self.grpc_menu)
         self.grpc_menu.bind()
 
     def get_config(self, what: str = "rpc"):
@@ -1539,20 +1533,15 @@ class SettingsScreen(Screen):
     def set_item(self, text_item, what: str = "RPC"):
         getattr(self.ids, f"{what.lower()}_drop_item").set_item(text_item)
         setattr(self, what.upper(), text_item)
-        print("what", what, getattr(self, what.upper()))
         getattr(self, f"{what.lower()}_menu").dismiss()
 
     def build(self):
-        print("before build, return screen")
         return self.screen
 
     def SaveOptions(self):
         config = self.MeileConfig.read_configuration(self.MeileConfig.CONFFILE)
         for what in ["rpc", "grpc"]:
             config.set('network', what, getattr(self, what.upper()))
-
-        print('network', 'rpc', self.RPC)
-        print('network', 'grpc', self.GRPC)
 
         with open(self.MeileConfig.CONFFILE, 'w', encoding="utf-8") as f:
             config.write(f)
