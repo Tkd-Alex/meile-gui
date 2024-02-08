@@ -32,10 +32,21 @@ class HTTParams:
     TIMEOUT = 5
     APIURL = "https://api.sentinel.mathnodes.com"
     # APIURL                 = "http://128.199.90.172:1317"
-    SERVER_URL = "https://aimokoivunen.mathnodes.com:5000"
+    APIS_URL = [APIURL] + [
+        "https://api-sentinel-ia.cosmosia.notional.ventures",
+        "https://lcd-sentinel.whispernode.com:443",
+        "https://api.sentinel.quokkastake.io",
+        "https://api.dvpn.roomit.xyz",
+        "https://sentinel-rest.publicnode.com",
+        "https://sentinel-api.validatornode.com",
+        "https://api.trinityvalidator.com",
+        "https://api.sentinelgrowthdao.com",
+    ]
+    MMAPI = "https://aimokoivunen.mathnodes.com:5000"
+    MMAPIS = [MMAPI] + []
     RPC = "https://rpc.mathnodes.com:443"
     # Note http://128.199.90.172:26657 is testnet ONLY!
-    RPCS = [
+    RPCS = [RPC] + [
         "https://rpc-sentinel-ia.cosmosia.notional.ventures:443",
         "https://rpc-sentinel.whispernode.com:443",
         "https://rpc.sentinel.chaintools.tech:443",
@@ -48,7 +59,7 @@ class HTTParams:
         "https://rpc.sentinelgrowthdao.com:443",
     ]
     GRPC = "aimokoivunen.mathnodes.com:9090"
-    GRPCS = [
+    GRPCS = [GRPC] + [
         "grpc-sentinel-ia.cosmosia.notional.ventures:443",
         "sentinel.grpcui.chaintools.host:443",
         "sentinel-mainnet-grpc.autostake.com:443",

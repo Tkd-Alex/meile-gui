@@ -91,7 +91,7 @@ class RatingContent(MDBoxLayout):
             rating_dict = {'uuid' : "%s" % UUID, 'address' : "%s" % node_address, "rating" : rating}
             Request = HTTPRequests.MakeRequest()
             http = Request.hadapter()
-            req = http.post(HTTParams.SERVER_URL + HTTParams.API_RATING_ENDPOINT, json=rating_dict)
+            req = http.post(HTTParams.MMAPI + HTTParams.API_RATING_ENDPOINT, json=rating_dict)
             if req.status_code == 200:
                 print("Rating Sent")
                 return 0
@@ -674,7 +674,7 @@ class RecycleViewSubRow(MDCard,RectangularElevationBehavior):
             uuid_dict = {'uuid' : "%s" % UUID, 'os' : "W"}
             Request = HTTPRequests.MakeRequest(TIMEOUT=3)
             http = Request.hadapter()
-            ping = http.post(HTTParams.SERVER_URL + HTTParams.API_PING_ENDPOINT, json=uuid_dict)
+            ping = http.post(HTTParams.MMAPI + HTTParams.API_PING_ENDPOINT, json=uuid_dict)
             if ping.status_code == 200:
                 print('ping')
             else:

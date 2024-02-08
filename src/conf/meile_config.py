@@ -52,12 +52,14 @@ class MeileGuiConfig():
             self.CONFIG.add_section('network')
             self.CONFIG.set('network', 'rpc', HTTParams.RPC)
             self.CONFIG.set('network', 'grpc', HTTParams.GRPC)
+            self.CONFIG.set('network', 'api', HTTParams.APIURL)
+            self.CONFIG.set('network', 'mmapi', HTTParams.MMAPI)
             write_file = True
 
         # backporting
-        for what in ['rpc', 'grpc']:
+        for what in ['rpc', 'grpc', 'api', 'mmapi']:
             if self.CONFIG['network'].get(what, None) is None:
-                self.CONFIG.set('network', what, getattr(HTTParams, what.upper()))
+                self.CONFIG.set('network', what, getattr(HTTParams, what.upper()) if what != "api" else HTTParams.APIURL)
                 write_file = True
 
         if write_file is True:

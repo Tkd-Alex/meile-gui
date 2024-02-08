@@ -153,7 +153,7 @@ class NodeTreeData():
         Request = HTTPRequests.MakeRequest(TIMEOUT=2)
         http = Request.hadapter()
         try:
-            r = http.get(HTTParams.SERVER_URL + HTTParams.NODE_SCORE_ENDPOINT)
+            r = http.get(HTTParams.MMAPI + HTTParams.NODE_SCORE_ENDPOINT)
             data = r.json()
           
             for nlist in data['data']:
@@ -166,7 +166,7 @@ class NodeTreeData():
         Request = HTTPRequests.MakeRequest(TIMEOUT=2)
         http = Request.hadapter()
         try:
-            r = http.get(HTTParams.SERVER_URL + HTTParams.NODE_LOCATION_ENDPOINT)
+            r = http.get(HTTParams.MMAPI + HTTParams.NODE_LOCATION_ENDPOINT)
             data = r.json()
           
             for nlist in data['data']:
@@ -180,7 +180,7 @@ class NodeTreeData():
         Request = HTTPRequests.MakeRequest(TIMEOUT=2)
         http = Request.hadapter()
         try:
-            r = http.get(HTTParams.SERVER_URL + HTTParams.NODE_TYPE_ENDPOINT)
+            r = http.get(HTTParams.MMAPI + HTTParams.NODE_TYPE_ENDPOINT)
             data = r.json()
 
             for nlist in data['data']:

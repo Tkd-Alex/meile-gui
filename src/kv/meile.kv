@@ -376,7 +376,8 @@ WindowManager:
     name: "settings"
     MDBoxLayout:
         orientation: "vertical"
-        padding: 150
+        padding: 50
+        spacing: 10
 
         MDLabel:
             padding: 50
@@ -384,14 +385,15 @@ WindowManager:
             text: "SETTINGS"
             font_size: "30sp"
             size_hint_y: .1
-            pos_hint: { "center_x": .9, "top": .5}
+            pos_hint: { "center_x": .9, "top": .3}
             theme_text_color: "Custom"
             text_color: get_color_from_hex("#fcb711")
 
         GridLayout:
+            padding: 1
             cols: 2
             row_force_default: True
-            row_default_height: 15
+            row_default_height: 5
 
             MDLabel:
                 font_name: "Roboto-Bold"
@@ -406,9 +408,10 @@ WindowManager:
                 on_release: root.rpc_menu.open()
 
         GridLayout:
+            padding: 1
             cols: 2
             row_force_default: True
-            row_default_height: 15
+            row_default_height: 5
 
             MDLabel:
                 font_name: "Roboto-Bold"
@@ -421,6 +424,42 @@ WindowManager:
                 id: grpc_drop_item
                 text: root.get_config('grpc')
                 on_release: root.grpc_menu.open()
+
+        GridLayout:
+            padding: 1
+            cols: 2
+            row_force_default: True
+            row_default_height: 5
+
+            MDLabel:
+                font_name: "Roboto-Bold"
+                text: "API"
+                font_size: "20sp"
+                size_hint_x: None
+                width: dp(250)
+
+            MDDropDownItem:
+                id: api_drop_item
+                text: root.get_config('api')
+                on_release: root.api_menu.open()
+
+        GridLayout:
+            padding: 1
+            cols: 2
+            row_force_default: True
+            row_default_height: 5
+
+            MDLabel:
+                font_name: "Roboto-Bold"
+                text: "MM API"
+                font_size: "20sp"
+                size_hint_x: None
+                width: dp(250)
+
+            MDDropDownItem:
+                id: mmapi_drop_item
+                text: root.get_config('mmapi')
+                on_release: root.mmapi_menu.open()
 
         MDRaisedButton:
             text: "SAVE"

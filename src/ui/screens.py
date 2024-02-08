@@ -1487,6 +1487,8 @@ class SettingsScreen(Screen):
         # Load default values
         self.RPC = params.RPC
         self.GRPC = params.GRPC
+        self.API = params.APIURL
+        self.MMAPI = params.MMAPI
 
         self.MeileConfig = MeileGuiConfig()
 
@@ -1525,6 +1527,38 @@ class SettingsScreen(Screen):
         )
         self.grpc_menu.bind()
 
+        self.api_menu = MDDropdownMenu(
+            caller=self.ids.api_drop_item,
+            items=[
+                {
+                    "viewclass": "IconListItem",
+                    "icon": "server-security",
+                    "text": f"{i}",
+                    "height": dp(56),
+                    "on_release": lambda x=f"{i}": self.set_item(x, "api"),
+                } for i in params.APIS_URL
+            ],
+            position="center",
+            width_mult=50,
+        )
+        self.api_menu.bind()
+
+        self.mmapi_menu = MDDropdownMenu(
+            caller=self.ids.api_drop_item,
+            items=[
+                {
+                    "viewclass": "IconListItem",
+                    "icon": "server-security",
+                    "text": f"{i}",
+                    "height": dp(56),
+                    "on_release": lambda x=f"{i}": self.set_item(x, "mmapi"),
+                } for i in params.MMAPIS
+            ],
+            position="center",
+            width_mult=50,
+        )
+        self.mmapi_menu.bind()
+
     def get_config(self, what: str = "rpc"):
         config = self.MeileConfig.read_configuration(self.MeileConfig.CONFFILE)
         getattr(self.ids, f"{what}_drop_item").set_item(config['network'][what])
@@ -1540,7 +1574,7 @@ class SettingsScreen(Screen):
 
     def SaveOptions(self):
         config = self.MeileConfig.read_configuration(self.MeileConfig.CONFFILE)
-        for what in ["rpc", "grpc"]:
+        for what in ["rpc", "grpc", "api", "mmapi"]:
             config.set('network', what, getattr(self, what.upper()))
 
         with open(self.MeileConfig.CONFFILE, 'w', encoding="utf-8") as f:
