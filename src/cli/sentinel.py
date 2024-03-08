@@ -2,6 +2,7 @@ from subprocess import Popen, PIPE, STDOUT
 import collections
 from os import path
 import re
+import copy
 import requests
 from urllib3.exceptions import InsecureRequestWarning
 from subprocess import Popen, PIPE, STDOUT
@@ -41,8 +42,29 @@ def format_file_size(size, decimals=2, binary_system=True):
         size /= step
     return ("%." + str(decimals) + "f %s") % (size, largest_unit)
 
+# TODO: find another place for this method :)
+def amount_denon_dict(string: str) -> dict:
+    amount_rx = r'^(\.\d|\d+\.\d+|\d+)'
+    denom_rx = r'[a-z]+'
+
+    amount = re.search(amount_rx, string)
+    if amount is None:
+        # unable to continue
+        return
+
+    denom = re.search(denom_rx, string)
+    if denom is None:
+        # unable to continue
+        return
+
+    return {"denom": denom, "amount": float(amount)}
+
 class NodeTreeData():
-    NodeTree      = None
+    # NodeTree is always the data rendered
+    # BackupNodeTree is just a copy of the Tree create from get_nodes()
+    BackupNodeTree = None
+    NodeTree       = None
+
     NodeScores    = {}
     NodeLocations = {}
     NodeTypes     = {}
@@ -138,11 +160,145 @@ class NodeTreeData():
                 pass
 
         self.NodeTree.show()
+
+        self.BackupNodeTree = copy.deepcopy(self.NodeTree)
+
         self.GetNodeScores()
         self.GetNodeLocations()
         self.GetNodeTypes()
         self.GetHealthCheckData()
 
+        # import code
+        # code.interact(local=locals())
+
+    # Filter nodetree.
+    # key;              what we want to filter, for example: Moniker, Type, Health
+    # value;            query value
+    # between;          value must be between[0], between[1], for example:
+    #                   key = "Hourly Price", between = ("5.3426dvpn", "15.3426dvpn")
+    #                   key = "Scores", between = (8, 10)
+    # from_backup;      if true it will be used the backupped data, else will be used the 'renderized' one (maybe already filtered)
+    # perfect_match;    if true, value must be equal for example:
+    #                   perfect_match = True, key = "Moniker", value = "Pinco" will match only Moniker === Pinco
+    #                   perfect_match = False, key = "Moniker", value = "Pinco" will match only Moniker like Pincopallo, Pizzapinco10, Pincopallino, Pinco1
+
+    def search(self, key: str, value = None, between: tuple = (), from_backup: bool = True, perfect_match: bool = False):
+        if value is None and len(between) == 0:
+            # at least one of value or between must be setted
+            return
+        # Create a copy of Tree please ...
+        # Under the iteration of keys I will delete all the nodes that doesn't match our query
+        filtered = copy.deepcopy(self.BackupNodeTree if from_backup is True else self.NodeTree)
+        # Iteration via the original data, in order to prevent "RuntimeError: dictionary changed size during iteration"
+        for identifier, content in (self.BackupNodeTree if from_backup is True else self.NodeTree).nodes.items():
+            if identifier.startswith("sentnode"):
+                key = key.title()
+                if key in content.data:
+                    # use in... / wherlike / contains
+                    if value is not None:
+                        if perfect_match is True:
+                            if value.lower().strip() != content.data[key].lower():
+                                filtered.remove_node(identifier)
+                        elif value.lower().strip() not in content.data[key].lower():
+                            # use in... / wherlike / contains
+                            filtered.remove_node(identifier)
+                    elif len(between) == 2:
+                        a, b = between[0], between[1]
+                        # all the values that can be used in 'range'
+
+                        # ups, following this: https://github.com/MathNodes/meile-gui/commit/622e501d332f0a34009b77548c4672e0ae32577b#diff-3729b5451a4398b2a4fd75a4bf0062d9bd5040677dd766ade023084aa9c03379R87
+                        # NodesInfoKeys = ["Moniker","Address","Price","Hourly Price", "Country","Speed","Latency","Peers","Handshake","Type","Version","Status"]
+                        # NodesInfoKeys = ["Moniker","Address","Price","Hourly Price", "Country","City","Latitude","Longitude","Download","Upload","Peers","Max Peers","Handshake","Type","Version"]
+
+                        # I'm so crazy and I like it
+                        if key in ['Hourly Price', 'Price']:
+                            # 'Hourly Price': '0.0185scrt,0.0008atom,1.8719dec,0.0189osmo,4.16dvpn',
+                            # 'Price': '0.0526scrt,0.0092atom,1.1809dec,0.1227osmo,15.3426dvpn',
+                            a = amount_denon_dict(a)
+                            b = amount_denon_dict(b)
+
+                            if a is None or b is None:
+                                # unable to continue
+                                return
+
+                            if a["denom"] != b["denom"]:
+                                # unable to use different denom in between
+                                return
+
+                            # It the same of b["denom"], just a variable rename
+                            def_denom = a["denom"]
+                            if def_denom == "udvpn":
+                                # btw, probably no one will use udvpn as search field
+                                a["denom"] = b["denom"] = "dvpn"
+                                a["amount"] = a["amount"] // 1000000
+                                b["amount"] = b["amount"] // 1000000
+
+                            prices = content.data[key].split(",")
+                            # Now we have an array: ['0.0185scrt', '0.0008atom', '1.8719dec', '0.0189osmo', '4.16dvpn']
+                            # Convert array with denom as key and amount as value:
+                            prices = {
+                                amount_denon_dict(p)["denom"]: amount_denon_dict(p)["amount"] for p in prices
+                            }
+                            if def_denom not in prices:
+                                # uhm, unable to continue, probably the node doesn't support this denom (?)
+                                # remove anyway from the tree
+                                filtered.remove_node(identifier)
+                            else:
+                                # Make sure a is min and b is max
+                                _min = min(a["amount"], b["amount"])
+                                _max = max(a["amount"], b["amount"])
+                                if prices[def_denom] > _max or prices[def_denom] < _min:
+                                    filtered.remove_node(identifier)
+                        else:
+                            # 'Latency': '1.762s',
+                            # 'Peers': '0',
+                            # --> not managed: 'Speed': '123.93MB+520.20MB',
+                            amount_rx = r'^(\.\d|\d+\.\d+|\d+)'
+
+                            #Extract only number
+                            node_value = float(re.search(amount_rx, content.data[key]).group(0))
+                            a = float(re.search(amount_rx, a).group(0))
+                            b = float(re.search(amount_rx, b).group(0))
+
+                            # Make sure a is min and b is max
+                            _min = min(a, b)
+                            _max = max(a, b)
+                            if node_value > _max or node_value < _min:
+                                filtered.remove_node(identifier)
+
+
+                # Type: wireguard / v2ray
+                # Type: residential / hosting .... (uhmm) - ConnectionType
+                elif key == "ConnectionType":
+                    if identifier not in self.NodeTypes:
+                        filtered.remove_node(identifier)
+                    else:
+                        if self.NodeTypes[identifier] != value:
+                            filtered.remove_node(identifier)
+                elif key == "Health":
+                    if identifier not in self.NodeHealth:
+                        filtered.remove_node(identifier)
+                    else:
+                        as_bool = value if isinstance(value, bool) else (value.lower() == "true")
+                        if self.NodeHealth[identifier] != as_bool:
+                            filtered.remove_node(identifier)
+                elif key == "Scores":
+                    if identifier not in self.NodeScores:
+                        filtered.remove_node(identifier)
+                    else:
+                        rating = float(self.NodeScores[identifier][0])
+                        if value is not None and float(value) != rating:
+                            filtered.remove_node(identifier)
+                        elif len(between) == 2:
+                            a, b = float(between[0]), float(between[1])
+                            # Make sure a is min and b is max
+                            _min = min(a, b)
+                            _max = max(a, b)
+                            if rating > _max or rating < _min:
+                                filtered.remove_node(identifier)
+
+        # Always override the 'renderized' one (maybe already filtered)
+        self.NodeTree = filtered
 
     def GetHealthCheckData(self):
         Request = HTTPRequests.MakeRequest(TIMEOUT=2)
