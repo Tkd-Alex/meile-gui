@@ -5,15 +5,15 @@ import psutil
 import binascii
 import random
 import re
-from time import sleep 
+from time import sleep
 from os import path, remove
 from urllib.parse import urlparse
 from grpc import RpcError
 
-from json.decoder import JSONDecodeError 
+from json.decoder import JSONDecodeError
 
 from conf.meile_config import MeileGuiConfig
-from typedef.konstants import IBCTokens, ConfParams, HTTParams
+from typedef.konstants import IBCTokens, ConfParams, HTTParams, MEILE_PLAN_WALLET
 from adapters import HTTPRequests
 from cli.v2ray import V2RayHandler, V2RayConfiguration
 
@@ -27,6 +27,8 @@ import bech32
 from bip_utils import Bip39SeedGenerator, Bip44, Bip44Coins
 from sentinel_protobuf.sentinel.subscription.v2.msg_pb2 import MsgCancelRequest, MsgCancelResponse
 
+from mospy import Transaction
+from sentinel_protobuf.cosmos.base.v1beta1.coin_pb2 import Coin
 from sentinel_sdk.sdk import SDKInstance
 from sentinel_sdk.types import NodeType, TxParams, Status
 from sentinel_sdk.utils import search_attribute
@@ -43,13 +45,13 @@ v2ray_tun2routes_connect_bash = MeileConfig.resource_path("../bin/routes.sh")
 
 class HandleWalletFunctions():
     connected =  {'v2ray_pid' : None, 'result' : False, 'status' : None}
-    
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
+
         CONFIG = MeileConfig.read_configuration(MeileConfig.CONFFILE)
         self.RPC = CONFIG['network'].get('rpc', HTTParams.RPC)
-        
+
         # Migrate existing wallet to v2
         #self.__migrate_wallets()
     @staticmethod
@@ -98,7 +100,7 @@ class HandleWalletFunctions():
             "privkey": privkey,
             "curve": curve,
         }
-    def __migrate_wallets(self):    
+    def __migrate_wallets(self):
         CONFIG = MeileConfig.read_configuration(MeileConfig.CONFFILE)
         PASSWORD = CONFIG['wallet'].get('password', '')
         KEYNAME = CONFIG['wallet'].get('keyname', '')
@@ -165,7 +167,7 @@ class HandleWalletFunctions():
         else:
             print(f"{keyhash_fpath} doesn't exist")
 
-        
+
     def __keyring(self, keyring_passphrase: str):
         kr = CryptFileKeyring()
         kr.filename = "keyring.cfg"
@@ -175,12 +177,18 @@ class HandleWalletFunctions():
         kr.keyring_key = keyring_passphrase
         return kr
 
+    def __destroy_keyring(self):
+        file_path = path.join(ConfParams.KEYRINGDIR, "keyring.cfg")
+        if path.isfile(file_path):
+            remove(file_path)
+
     def create(self, wallet_name, keyring_passphrase, seed_phrase = None):
         # Credtis: https://github.com/ctrl-Felix/mospy/blob/master/src/mospy/utils.py
+        self.__destroy_keyring()
 
         if seed_phrase is None:
             seed_phrase = Mnemonic("english").generate(strength=256)
-            
+
         seed_bytes = Bip39SeedGenerator(seed_phrase).Generate()
         bip44_def_ctx = Bip44.FromSeed(seed_bytes, Bip44Coins.COSMOS).DeriveDefaultPath()
 
@@ -199,38 +207,42 @@ class HandleWalletFunctions():
             'address': account_address,
             'seed': seed_phrase
         }
-    
-    def subscribe(self, KEYNAME, NODE, DEPOSIT, GB, hourly):
+
+    """
+    def subscribe_toplan(self, KEYNAME, plan_id, DENOM, amount_required):
         if not KEYNAME:
             return (False, 1337)
-        
-        print("Deposit/denom")
-        print(DEPOSIT)
-        DENOM = self.DetermineDenom(DEPOSIT)
-        print(DENOM)
-        
+
         CONFIG = MeileConfig.read_configuration(MeileConfig.CONFFILE)
         PASSWORD = CONFIG['wallet'].get('password', '')
-        
-        #self.RPC = CONFIG['network'].get('rpc', HTTParams.RPC)
-        self.GRPC = CONFIG['network'].get('grpc', HTTParams.GRPC)
-        
-        grpcaddr, grpcport = urlparse(self.GRPC).netloc.split(":")
+
+        # self.RPC = CONFIG['network'].get('rpc', HTTParams.RPC)
+        # self.GRPC = CONFIG['network'].get('grpc', HTTParams.GRPC)
+        # grpcaddr, grpcport = urlparse(self.GRPC).netloc.split(":")
+        grpcaddr = "grpc.sentinel.co"
+        grpcport = "9090"
 
         kr = self.__keyring(PASSWORD)
         private_key = kr.get_password("meile-gui", KEYNAME)
-        
+
         sdk = SDKInstance(grpcaddr, int(grpcport), secret=private_key)
-    
+
         balance = self.get_balance(sdk._account.address)
-        
-        amount_required = float(DEPOSIT.replace(DENOM, ""))
-        token_ibc = {v: k for k, v in IBCTokens.IBCUNITTOKEN.items()}
-        
-        ubalance = balance.get(token_ibc[DENOM][1:], 0) * IBCTokens.SATOSHI
-        
-        if ubalance < amount_required:
-            return(False, f"Balance is too low, required: {round(amount_required / IBCTokens.SATOSHI, 4)}{token_ibc[DENOM][1:]}")
+        print(balance)
+
+        amount_required = float(amount_required)  # Just in case was passed as str
+
+        # Get balance automatically return udvpn ad dvpn
+        if balance.get(DENOM, 0) < amount_required:
+            return(False, f"Balance is too low, required: {amount_required}{DENOM}")
+
+        # F***ck we have always a unit issue ...
+        if DENOM == "dvpn":
+            print(f"Denom is a dvpn, convert as udvpn, amount_required: {amount_required}dvpn")
+            DENOM = "udvpn"
+            amount_required = round(amount_required * IBCTokens.SATOSHI, 4)
+            print(f"amount_required: {amount_required}udvpn")
+
 
         tx_params = TxParams(
             # denom="udvpn",  # TODO: from ConfParams
@@ -238,15 +250,15 @@ class HandleWalletFunctions():
             # gas=ConfParams.GAS,
             gas_multiplier=ConfParams.GASADJUSTMENT
         )
-        
-        tx = sdk.nodes.SubscribeToNode(
-            node_address=NODE,
-            gigabytes=0 if hourly else GB,
-            hours=GB if hourly else 0,
+
+        # https://github.com/MathNodes/sentinel-python-sdk/blob/main/src/sentinel_sdk/modules/plan.py#L69
+        # When you subscribe to a plan you will subscribe only for plan duration, you can't subscribe more than plan
+        tx = sdk.plans.Subscribe(
             denom=DENOM,
-            tx_params=tx_params,
+            plan_id=int(plan_id),
+            tx_params=tx_params
         )
-        
+
         if tx.get("log", None) is not None:
             return(False, tx["log"])
 
@@ -260,14 +272,178 @@ class HandleWalletFunctions():
                 return (True, subscription_id)
 
         return(False, "Tx error")
-        
+    """
+
+    def send_2plan_wallet(self, KEYNAME, plan_id, DENOM, amount_required):
+        if not KEYNAME:
+            return (False, 1337)
+
+        CONFIG = MeileConfig.read_configuration(MeileConfig.CONFFILE)
+        PASSWORD = CONFIG['wallet'].get('password', '')
+
+        # self.RPC = CONFIG['network'].get('rpc', HTTParams.RPC)
+        # self.GRPC = CONFIG['network'].get('grpc', HTTParams.GRPC)
+        # grpcaddr, grpcport = urlparse(self.GRPC).netloc.split(":")
+        grpcaddr = "grpc.sentinel.co"
+        grpcport = "9090"
+
+        kr = self.__keyring(PASSWORD)
+        private_key = kr.get_password("meile-gui", KEYNAME)
+
+        sdk = SDKInstance(grpcaddr, int(grpcport), secret=private_key)
+
+        balance = self.get_balance(sdk._account.address)
+        print(balance)
+
+        amount_required = float(amount_required)  # Just in case was passed as str
+
+        # Get balance automatically return udvpn ad dvpn
+        if balance.get(DENOM, 0) < amount_required:
+            return(False, f"Balance is too low, required: {amount_required}{DENOM}")
+
+        # F***ck we have always a unit issue ...
+        if DENOM == "dvpn":
+            print(f"Denom is a dvpn, convert as udvpn, amount_required: {amount_required}dvpn")
+            DENOM = "udvpn"
+            amount_required = round(amount_required * IBCTokens.SATOSHI, 4)
+            print(f"amount_required: {amount_required}udvpn")
+        else:
+            # I need to convert osmo, atom etc to ibc denom
+            # token_ibc (k: v) is a dict like: {'uscrt': 'ibc/31FEE1A2A9F9C01113F90BD0BBCCE8FD6BBB8585FAF109A2101827DD1D5B95B8', 'uatom': 'ibc/A8C2D23A1E6
+            token_ibc = {k: v for k, v in IBCTokens.IBCUNITTOKEN.items()}
+            DENOM = token_ibc.get(DENOM, DENOM)
+
+        tx_params = TxParams(
+            # denom="udvpn",  # TODO: from ConfParams
+            # fee_amount=20000,  # TODO: from ConfParams
+            # gas=ConfParams.GAS,
+            gas_multiplier=ConfParams.GASADJUSTMENT
+        )
+
+        tx = Transaction(
+            account=sdk._account,
+            fee=Coin(denom=tx_params.denom, amount=f"{tx_params.fee_amount}"),
+            gas=tx_params.gas,
+            protobuf="sentinel",
+            chain_id="sentinelhub-2",
+            memo=f"Meile Plan #{plan_id}",
+        )
+        tx.add_msg(
+            tx_type='transfer',
+            sender=sdk._account,
+            # receipient=MEILE_PLAN_WALLET
+            receipient=sdk._account.address,  # TODO: debug send to myself
+            # amount=amount_required,
+            # denom=DENOM
+            amount=1000000,  # TODO: debug
+            denom="udvpn"  # TODO: debug
+        )
+        # # Required before each tx of we get account sequence mismatch, expected 945, got 944: incorrect account sequence
+        sdk._client.load_account_data(account=sdk._account)
+        # inplace, auto-update gas with update=True
+        # auto calculate the gas only if was not already passed as args:
+        if tx_params.gas == 0:
+            sdk._client.estimate_gas(
+                transaction=tx, update=True, multiplier=tx_params.gas_multiplier
+            )
+
+        tx_height = 0
+        try:
+            tx = sdk._client.broadcast_transaction(transaction=tx)
+        except RpcError as rpc_error:
+            details = rpc_error.details()
+            print("details", details)
+            print("code", rpc_error.code())
+            print("debug_error_string", rpc_error.debug_error_string())
+            return (False, {'hash' : None, 'success' : False, 'message' : details})
+
+        if tx.get("log", None) is None:
+            tx_response = sdk.nodes.wait_for_tx(tx["hash"])
+            tx_height = tx_response.get("txResponse", {}).get("height", 0) if isinstance(tx_response, dict) else tx_response.tx_response.height
+
+        # F***ck we have always a unit issue ...
+        # Rollback to original dvpn amount :(
+        if DENOM == "udvpn":
+            DENOM = "dvpn"
+            amount_required = round(amount_required / IBCTokens.SATOSHI, 4)
+        else:
+            # Change denom to 'human' readable one
+            token_ibc = {v: k for k, v in IBCTokens.IBCUNITTOKEN.items()}
+            # token_ibc (v: k) is a dict like: {'ibc/31FEE1A2A9F9C01113F90BD0BBCCE8FD6BBB8585FAF109A2101827DD1D5B95B8': 'uscrt', 'ibc/A8C2D23A1E6F95DA4E48BA349667E322BD7A6C996D8A4AAE8BA72E190F3D1477': 'uatom',
+            DENOM = token_ibc.get(DENOM, DENOM)
+
+        message = f"Succefully sent {amount_required}{DENOM} at height: {tx_height} for plan id: {plan_id}" if tx.get("log", None) is None else tx["log"]
+        return (True, {'hash' : tx.get("hash", None), 'success' : tx.get("log", None) is None, 'message' : message})
+
+    # This method should be renamed as: 'subscribe to node'
+    def subscribe(self, KEYNAME, NODE, DEPOSIT, GB, hourly):
+        if not KEYNAME:
+            return (False, 1337)
+
+        print("Deposit/denom")
+        print(DEPOSIT)
+        DENOM = self.DetermineDenom(DEPOSIT)
+        print(DENOM)
+
+        CONFIG = MeileConfig.read_configuration(MeileConfig.CONFFILE)
+        PASSWORD = CONFIG['wallet'].get('password', '')
+
+        #self.RPC = CONFIG['network'].get('rpc', HTTParams.RPC)
+        self.GRPC = CONFIG['network'].get('grpc', HTTParams.GRPC)
+
+        grpcaddr, grpcport = urlparse(self.GRPC).netloc.split(":")
+
+        kr = self.__keyring(PASSWORD)
+        private_key = kr.get_password("meile-gui", KEYNAME)
+
+        sdk = SDKInstance(grpcaddr, int(grpcport), secret=private_key)
+
+        balance = self.get_balance(sdk._account.address)
+
+        amount_required = float(DEPOSIT.replace(DENOM, ""))
+        token_ibc = {v: k for k, v in IBCTokens.IBCUNITTOKEN.items()}
+
+        ubalance = balance.get(token_ibc[DENOM][1:], 0) * IBCTokens.SATOSHI
+
+        if ubalance < amount_required:
+            return(False, f"Balance is too low, required: {round(amount_required / IBCTokens.SATOSHI, 4)}{token_ibc[DENOM][1:]}")
+
+        tx_params = TxParams(
+            # denom="udvpn",  # TODO: from ConfParams
+            # fee_amount=20000,  # TODO: from ConfParams
+            # gas=ConfParams.GAS,
+            gas_multiplier=ConfParams.GASADJUSTMENT
+        )
+
+        tx = sdk.nodes.SubscribeToNode(
+            node_address=NODE,
+            gigabytes=0 if hourly else GB,
+            hours=GB if hourly else 0,
+            denom=DENOM,
+            tx_params=tx_params,
+        )
+
+        if tx.get("log", None) is not None:
+            return(False, tx["log"])
+
+        if tx.get("hash", None) is not None:
+            tx_response = sdk.nodes.wait_for_tx(tx["hash"])
+            print(tx_response)
+            subscription_id = search_attribute(
+                tx_response, "sentinel.node.v2.EventCreateSubscription", "id"
+            )
+            if subscription_id:
+                return (True, subscription_id)
+
+        return(False, "Tx error")
+
     def DetermineDenom(self, deposit):
         for key,value in IBCTokens.IBCUNITTOKEN.items():
             if value in deposit:
                 return value
-            
-            
-    
+
+
+
     def unsubscribe(self, subId):
         CONFIG = MeileConfig.read_configuration(MeileConfig.CONFFILE)
         PASSWORD = CONFIG['wallet'].get('password', '')
@@ -276,13 +452,13 @@ class HandleWalletFunctions():
         if not KEYNAME:
             return {'hash' : "0x0", 'success' : False, 'message' : "ERROR Retrieving Keyname"}
 
-        
+
         self.GRPC = CONFIG['network'].get('grpc', HTTParams.GRPC)
 
         grpcaddr, grpcport = urlparse(self.GRPC).netloc.split(":")
 
         kr = self.__keyring(PASSWORD)
-        private_key = kr.get_password("meile-gui", KEYNAME) 
+        private_key = kr.get_password("meile-gui", KEYNAME)
 
         sdk = SDKInstance(grpcaddr, int(grpcport), secret=private_key)
 
@@ -296,8 +472,8 @@ class HandleWalletFunctions():
         except RpcError as rpc_error:
             details = rpc_error.details()
             print("details", details)
-            print("code", rpc_error.code()) 
-            print("debug_error_string", rpc_error.debug_error_string()) 
+            print("code", rpc_error.code())
+            print("debug_error_string", rpc_error.debug_error_string())
 
             search = f"invalid status inactive_pending for subscription {subId}"
             if re.search(search, details, re.IGNORECASE):
@@ -308,48 +484,48 @@ class HandleWalletFunctions():
             return {'hash' : None, 'success' : False, 'message' : message}
 
         if tx.get("log", None) is None:
-            tx_response = sdk.nodes.wait_for_tx(tx["hash"])
-            tx_height = tx_response.tx_response.height
+            tx_response = sdk.plans.wait_for_tx(tx["hash"])
+            tx_height = tx_response.get("txResponse", {}).get("height", 0) if isinstance(tx_response, dict) else tx_response.tx_response.height
 
-        message = f"Unsubscribe from Subscription ID: {subId}, was successful at Height: {tx_height}" if tx.get("log", None) is None else tx.get["log"]
+        message = f"Unsubscribe from Subscription ID: {subId}, was successful at Height: {tx_height}" if tx.get("log", None) is None else tx["log"]
         return {'hash' : tx.get("hash", None), 'success' : tx.get("log", None) is None, 'message' : message}
-    
-            
-    
+
+
+
     def connect(self, ID, address, type):
 
         CONFIG = MeileConfig.read_configuration(MeileConfig.CONFFILE)
-       
+
         PASSWORD = CONFIG['wallet'].get('password', '')
         KEYNAME = CONFIG['wallet'].get('keyname', '')
-       
-        self.GRPC = CONFIG['network'].get('grpc', HTTParams.GRPC)   
-        
+
+        self.GRPC = CONFIG['network'].get('grpc', HTTParams.GRPC)
+
         grpcaddr, grpcport = urlparse(self.GRPC).netloc.split(":")
 
         kr = self.__keyring(PASSWORD)
         private_key = kr.get_password("meile-gui", KEYNAME)
-        
+
         sdk = SDKInstance(grpcaddr, int(grpcport), secret=private_key)
-        
+
         tx_params = TxParams(
             gas_multiplier=ConfParams.GASADJUSTMENT
         )
-        
+
         # End active sessions if any. INACTIVE_PENDING is moot
         sessions = sdk.sessions.QuerySessionsForSubscription(int(ID))
         for session in sessions:
             if session.status == Status.ACTIVE.value:
                 tx = sdk.sessions.EndSession(session_id=session.id, rating=0, tx_params=tx_params)
                 print(sdk.sessions.wait_for_tx(tx["hash"]))
-        
+
         tx = sdk.sessions.StartSession(subscription_id=int(ID), address=address)
         # Will need to handle log responses with friendly UI response in case of session create error
         if tx.get("log", None) is not None:
             self.connected = {"v2ray_pid" : None,  "result": False, "status" : tx["log"]}
             print(self.connected)
             return
-       
+
         tx_response = sdk.sessions.wait_for_tx(tx["hash"])
         session_id = search_attribute(tx_response, "sentinel.session.v2.EventStart", "id")
 
@@ -358,17 +534,17 @@ class HandleWalletFunctions():
             "address": search_attribute(tx_response, "sentinel.session.v2.EventStart", "address"),
             "node_address": search_attribute(tx_response, "sentinel.session.v2.EventStart", "node_address"),
         }
-        
+
         # Sanity Check. Not needed
         #assert from_event["subscription_id"] == ID and from_event["address"] == sdk._account.address and from_event["node_address"] == address
-       
+
         sleep(1.5)  # Wait a few seconds....
         # The sleep is required because the session_id could not be fetched from the node / rpc
 
         node = sdk.nodes.QueryNode(address)
         # Again sanity check. Not needed unless the blockchain is foobar'ed
         #assert node.address == address
-        
+
         if type == "WireGuard":
             # [from golang] wgPrivateKey, err = wireguardtypes.NewPrivateKey()
             # [from golang] key = wgPrivateKey.Public().String()
@@ -381,7 +557,7 @@ class HandleWalletFunctions():
             # [from golang] key = base64.StdEncoding.EncodeToString(append([]byte{0x01}, uid...))
             # data length must be 17 bytes...
             key = base64.b64encode(bytes(0x01) + uid_16b.bytes).decode("utf-8")
-            
+
          # Sometime we get a random "code":4,"message":"invalid signature ...``
         for _ in range(0, 3):  # 3 as max_attempt:
             sk = ecdsa.SigningKey.from_string(sdk._account.private_key, curve=ecdsa.SECP256k1, hashfunc=hashlib.sha256)
@@ -554,8 +730,8 @@ class HandleWalletFunctions():
                     return
 
         self.connected = {"v2ray_pid" : None,  "result": False, "status": "boh"}
-        return   
-           
+        return
+
 
     def get_balance(self, address):
         Request = HTTPRequests.MakeRequest()
@@ -563,13 +739,13 @@ class HandleWalletFunctions():
         endpoint = HTTParams.BALANCES_ENDPOINT + address
         CoinDict = {'dvpn' : 0, 'scrt' : 0, 'dec'  : 0, 'atom' : 0, 'osmo' : 0}
         #CoinDict = {'tsent' : 0, 'scrt' : 0, 'dec'  : 0, 'atom' : 0, 'osmo' : 0}
-        
+
         try:
             r = http.get(HTTParams.APIURL + endpoint)
             coinJSON = r.json()
         except:
             return None
-            
+
         print(coinJSON)
         try:
             for coin in coinJSON['result']:
@@ -589,8 +765,7 @@ class HandleWalletFunctions():
             print(str(e))
             return None
         return CoinDict
-    
 
-                
-    
-        
+
+
+

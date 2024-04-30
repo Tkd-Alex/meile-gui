@@ -1,5 +1,6 @@
 from os import path, environ
 
+MEILE_PLAN_WALLET = "sent1tdgva8fhl9rgawrj2am9sv8prw2h44mc8g3qch"
 
 class Arch():
     LINUX   = "Linux"
@@ -7,7 +8,7 @@ class Arch():
     OSX     = "Darwin"
     X86     = "x86_64"
     ARM     = "arm64"
-    
+
 class ConfParams():
     USER             = environ['SUDO_USER'] if 'SUDO_USER' in environ else environ['USER']
     PATH             = environ['PATH']
@@ -24,7 +25,7 @@ class ConfParams():
     #GASPRICE         = "0.2tsent"
     GASADJUSTMENT    = 1.15
     GAS              = 500000
-    
+
 
 class HTTParams():
     TIMEOUT                = 5
@@ -59,19 +60,19 @@ class HTTParams():
     ICANHAZDNS             = "icanhazip.com"
     IFCONFIGDNS            = "ifconfig.co"
     IFCONFIGURL            = "https://ifconfig.co/json"
-    
-    
+
+
 class IBCTokens():
-    
+
     SATOSHI  = 1000000
-    
+
     # IBC Tokens
     IBCSCRT  = 'ibc/31FEE1A2A9F9C01113F90BD0BBCCE8FD6BBB8585FAF109A2101827DD1D5B95B8'
     IBCATOM  = 'ibc/A8C2D23A1E6F95DA4E48BA349667E322BD7A6C996D8A4AAE8BA72E190F3D1477'
     IBCDEC   = 'ibc/B1C0DDB14F25279A2026BC8794E12B259F8BDA546A3C5132CCAEE4431CE36783'
     IBCOSMO  = 'ibc/ED07A3391A112B175915CD8FAF43A2DA8E4790EDE12566649D0C2F97716B8518'
     IBCUNKWN = 'ibc/9BCB27203424535B6230D594553F1659C77EC173E36D9CF4759E7186EE747E84'
-    
+
     IBCCOINS     = [{'uscrt' : IBCSCRT}, {'uatom' : IBCATOM}, {'udec' : IBCDEC}, {'uosmo' : IBCOSMO}, {'uknwn' :IBCUNKWN}]
     UNITTOKEN    = {'uscrt' : 'scrt', 'uatom' : 'atom' , 'uosmo' : 'osmo', 'udec' : 'dec', 'udvpn' : 'dvpn', 'tsent' : 'tsent'}
     IBCUNITTOKEN = {'uscrt' : IBCSCRT, 'uatom' : IBCATOM , 'uosmo' : IBCOSMO, 'udec' : IBCDEC, 'udvpn' : 'udvpn', 'tsent' : 'tsent'}
@@ -84,7 +85,7 @@ class TextStrings():
     RootTag = "SENTINEL"
     PassedHealthCheck = "Passed Sentinel Health Check"
     FailedHealthCheck = "Failed Sentinel Health Check"
-    
+
 class MeileColors():
     BLACK                    = "#000000"
     MEILE                    = "#fcb711"
@@ -100,7 +101,7 @@ class MeileColors():
     SICK_ICON                = "emoticon-sick"
     ARCGIS_MAP               = "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}.png"
     ARCGIS_MAP2              = "https://server.arcgisonline.com/arcgis/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}.png"
-    
+
 class NodeKeys():
     '''v1.8.0
     NodesInfoKeys = ["Moniker","Address","Price","Hourly Price", "Country","Speed","Latency","Peers","Handshake","Type","Version","Status"]
@@ -110,7 +111,7 @@ class NodeKeys():
     NodeVersions  = [str(item).zfill(3) for item in range(30,1000)]
     Nodetypes = ['residential', 'business', 'hosting', 'edu']
     '''
-    
+
     NodesInfoKeys = ["Moniker","Address","Price","Hourly Price", "Country","City","Latitude","Longitude","Download","Upload","Peers","Max Peers","Handshake","Type","Version"]
     SubsInfoKeys  = ["ID", "Owner", "Inactive Date", "Status", "Node", "Gigabytes", "Hours", "Deposit", "Plan", "Denom"]
     # [ "ID", "Moniker", "Node", "Gigabytes", "Deposit", "Country", "Allocated", "Consumed", "Type", "Inactive Date", "Hours"]

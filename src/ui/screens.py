@@ -1611,6 +1611,7 @@ class PlanScreen(MDBoxLayout):
 
         req = http.get(HTTParams.PLAN_API + HTTParams.API_PLANS, auth=HTTPBasicAuth(scrtsxx.PLANUSERNAME, scrtsxx.PLANPASSWORD))
         plan_data = req.json()
+        print(plan_data)
 
         # Prevent plan parsing when wallet is not initialized
         user_enrolled_plans = []

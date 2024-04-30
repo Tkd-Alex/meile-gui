@@ -84,7 +84,7 @@ class NodeTreeData():
                 
         except Exception as e:
             print(str(e))
-            pass
+            data = [] # Init data as empty array, prevent exception on CreateNodeTreeStructure
         
         AllNodesInfoSorted = sorted(AllNodesInfo, key=lambda d: d[NodeKeys.NodesInfoKeys[4]])
         
