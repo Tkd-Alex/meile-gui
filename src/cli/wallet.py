@@ -305,7 +305,7 @@ class HandleWalletFunctions():
         if DENOM == "dvpn":
             print(f"Denom is a dvpn, convert as udvpn, amount_required: {amount_required}dvpn")
             DENOM = "udvpn"
-            amount_required = round(amount_required * IBCTokens.SATOSHI, 4)
+            amount_required = int(round(amount_required * IBCTokens.SATOSHI, 4))
             print(f"amount_required: {amount_required}udvpn")
         else:
             # I need to convert osmo, atom etc to ibc denom
@@ -331,12 +331,12 @@ class HandleWalletFunctions():
         tx.add_msg(
             tx_type='transfer',
             sender=sdk._account,
-            # receipient=MEILE_PLAN_WALLET
-            receipient=sdk._account.address,  # TODO: debug send to myself
-            # amount=amount_required,
-            # denom=DENOM
-            amount=1000000,  # TODO: debug
-            denom="udvpn"  # TODO: debug
+            receipient=MEILE_PLAN_WALLET,
+            # receipient=sdk._account.address,  # TODO: debug send to myself
+            amount=amount_required,
+            denom=DENOM,
+            # amount=1000000,  # TODO: debug
+            # denom="udvpn"  # TODO: debug
         )
         # # Required before each tx of we get account sequence mismatch, expected 945, got 944: incorrect account sequence
         sdk._client.load_account_data(account=sdk._account)
@@ -372,7 +372,7 @@ class HandleWalletFunctions():
             # token_ibc (v: k) is a dict like: {'ibc/31FEE1A2A9F9C01113F90BD0BBCCE8FD6BBB8585FAF109A2101827DD1D5B95B8': 'uscrt', 'ibc/A8C2D23A1E6F95DA4E48BA349667E322BD7A6C996D8A4AAE8BA72E190F3D1477': 'uatom',
             DENOM = token_ibc.get(DENOM, DENOM)
 
-        message = f"Succefully sent {amount_required}{DENOM} at height: {tx_height} for plan id: {plan_id}" if tx.get("log", None) is None else tx["log"]
+        message = f"Succefully sent {amount_required}{DENOM} at height: {tx_height} for plan id: {plan_id}." if tx.get("log", None) is None else tx["log"]
         return (True, {'hash' : tx.get("hash", None), 'success' : tx.get("log", None) is None, 'message' : message})
 
     # This method should be renamed as: 'subscribe to node'
